@@ -10,7 +10,8 @@ clc; close all; clear
 addpath misc
 addpath SSN_subproblem
 %% Problem Generating
-n_list = [300, 500]; p_list = [50, 100];
+% n_list = [300, 500]; p_list = [50, 100];
+n_list = 500; p_list = [50, 100];
 % mu_list = [0.5, 0.7, 1];
 mu_list = 1;
 for n=n_list
@@ -55,7 +56,7 @@ for n=n_list
             Lag = @(X,Y,Lambda,gamma,rho) f(X) + mu*g(Y) + trace(Lambda.'*(X-Y)) + rho/2*norm(X-Y)^2;
             L_M = @(X,Z,Lambda,gamma,rho) f(X) + mu*g_gamma(Z,gamma) + trace(Lambda.'*(X-Z)) + rho/2*norm(X-Z)^2;
 
-            iter = 1;
+            iter = 3;
             F_val(iter) = F(X); F_val_manpg(iter) = F(X);
             F_val_subg(iter) = F(X);
             L_val(iter) = Lag(X,Y,Lambda,gamma,rho);
@@ -168,12 +169,12 @@ for n=n_list
                     if iter < 1000
                         cpu_time_manpg(k,iter+1) = cpu_time_manpg(k,iter);
                     end
-                    F_val_manpg_avg(iter) = F_val_manpg_avg(iter)+ F_val_manpg(iter);
+                    
                 end
                 iter1 = min(iter, iter1);
+                
 
                 %% RADMM
-                F_val_avg(1) = F_val_avg(1) + F(X);
                 for iter=2:N
                     admm_start = tic;
                     % X step: a gradient step
@@ -217,15 +218,15 @@ for n=n_list
                     if iter < 1000
                         cpu_time_admm(k,iter+1) = cpu_time_admm(k,iter);
                     end
-                    L_val_avg(iter) = L_val_avg(iter) + L_val(iter);
-                    F_val_avg(iter) = F_val_avg(iter) + F_val(iter);
-                    dist_XY_avg(iter) = dist_XY_avg(iter) + dist_XY(iter);
-                    dist_XZ_avg(iter) = dist_XZ_avg(iter) + dist_XZ(iter);
-                    dist_ZY_avg(iter) = dist_ZY_avg(iter) + dist_ZY(iter);
 
                     % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
                 end
                 iter2 = min(iter, iter2);
+                L_val_avg(1:iter-1) = L_val_avg(1:iter-1) + L_val(1:iter-1);
+                
+                dist_XY_avg(1:iter-1) = dist_XY_avg(1:iter-1) + dist_XY(1:iter-1);
+                dist_XZ_avg(1:iter-1) = dist_XZ_avg(1:iter-1) + dist_XZ(1:iter-1);
+                dist_ZY_avg(1:iter-1) = dist_ZY_avg(1:iter-1) + dist_ZY(1:iter-1);
 
                 %% Riemannian Subgrad method
                 F_val_subg_avg(1) = F_val_subg_avg(1) + F(W);
@@ -238,7 +239,7 @@ for n=n_list
                     W = retr(W, eta*neg_rg);
                     elapsed_time_subg = toc(subg_start);
                     F_val_subg(iter) = F(W);
-                    F_val_subg_avg(iter) = F_val_subg_avg(iter) + F_val_subg(iter);
+                    
                     if abs(F_val_subg(iter) - F_val_subg(iter-1)) <= 1e-8
                         break
                     end
@@ -249,12 +250,31 @@ for n=n_list
                     end
                 end
                 iter3 = min(iter, iter3);
+                
 
                 sparse_X(k) = sum(sum(abs(Y) <= 1e-8))/(n*p);
                 error_Y(k) = norm(Y.'*Y - eye(p), 'fro');
                 sparse_U(k) = sum(sum(abs(U) <= 1e-8))/(n*p);
                 sparse_W(k) = sum(sum(abs(W) <= 1e-8))/(n*p);
                 % sum(sum(Z)), error: norm(Z.'*Z, 'fro')
+                
+                %% sum all the averages
+                min_among_all = min([min(F_val_manpg(2:end)), min(F_val(2:end)), min(F_val_subg(2:end))]) - eps;
+                l = size(F_val_manpg);
+                for i=1:l(2)
+                    F_val_manpg(i) = F_val_manpg(i) - min_among_all;
+                end
+                l = size(F_val);
+                for i=1:l(2)
+                    F_val(i) = F_val(i) - min_among_all;
+                end
+                l = size(F_val_subg);
+                for i=1:l(2)
+                    F_val_subg(i) = F_val_subg(i) - min_among_all;
+                end
+                F_val_manpg_avg(1:iter1) = F_val_manpg_avg(1:iter1)+ F_val_manpg(1:iter1);
+                F_val_avg(1:iter2) = F_val_avg(1:iter2) + F_val(1:iter2);
+                F_val_subg_avg(1:iter3) = F_val_subg_avg(1:iter3) + F_val_subg(1:iter3);
             end 
             F_val_avg= (F_val_avg/avg);
             L_val_avg = (L_val_avg/avg);
@@ -340,14 +360,15 @@ for n=n_list
 %             semilogy(cpu_time_subg, F_val_subg_avg); hold on;
 %             semilogy(cpu_time_manpg, F_val_manpg_avg); hold on;
 %             semilogy(cpu_time_admm, F_val_avg); hold on;
-            semilogy(cpu_time_subg(1:iter3), F_val_subg_avg(1:iter3)); hold on;
-            semilogy(cpu_time_manpg(1:iter1), F_val_manpg_avg(1:iter1)); hold on;
-            semilogy(cpu_time_admm(1:iter2), F_val_avg(1:iter2)); hold on;
-            xlabel("CPU time");
-            ylabel("Function value");
+            semilogy(cpu_time_subg(2:iter3), F_val_subg_avg(2:iter3),'LineWidth',2); hold on;
+            semilogy(cpu_time_manpg(2:iter1), F_val_manpg_avg(2:iter1),'LineWidth',2); hold on;
+            semilogy(cpu_time_admm(2:iter2), F_val_avg(2:iter2),'LineWidth',2); hold on;
+            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
             legend('RSG', 'ManPG', 'RADMM');
+            legend('Location','best','FontSize',20);
             filename = "grid_search_plots/n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";
             saveas(figure4, filename);
+            % break;
         end
 
     end

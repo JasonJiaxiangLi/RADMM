@@ -8,22 +8,22 @@
 clc; close all; clear
 
 %% Problem Generating
-D = 30; n = D;
+D = 70; n = D;
 c = 5; p = c;
 d = D - c;
-trial_number = 1;
+trial_number = 5;
 
 N = 500; % inlier number
 M = 1167;  % outlier number
 
-max_iter = 2000;
-F_val_soc_avg = zeros([1,max_iter]);
+max_iter = 1000; max_iter_soc=500;
+F_val_soc_avg = zeros([1,max_iter_soc]);
 F_val_madmm_avg = zeros([1,max_iter]);
 F_val_radmm_avg = zeros([1,max_iter]);
-cpu_time_soc = zeros([trial_number,max_iter]); cpu_time_soc(1) = eps;
+cpu_time_soc = zeros([trial_number,max_iter_soc]); cpu_time_soc(1) = eps;
 cpu_time_madmm = zeros([trial_number,max_iter]); cpu_time_madmm(1) = eps;
 cpu_time_radmm = zeros([trial_number, max_iter]); cpu_time_radmm(1) = eps;
-vio_soc_avg = zeros([1,max_iter]);
+vio_soc_avg = zeros([1,max_iter_soc]);
 vio_madmm_avg = zeros([1,max_iter]);
 vio_radmm_avg = zeros([1,max_iter]);
 
@@ -44,20 +44,16 @@ for k = 1:trial_number
     % random initialize
     X0 = orth(randn(n, p));
     fprintf('Fval at the initial: %f\n', F(X0));
-    F_val_soc(1) = F(X0);
-    F_val_madmm(1) = F(X0);
-    F_val_radmm(1) = F(X0);
-    
-    F_val_soc_avg(1) = F_val_soc_avg(1) + F(X0);
-    F_val_madmm_avg(1) = F_val_madmm_avg(1) + F(X0);
-    F_val_radmm_avg(1) = F_val_radmm_avg(1) + F(X0);
+    F_val_soc(1) = F(X0) ;
+    F_val_madmm(1) = F(X0) ;
+    F_val_radmm(1) = F(X0) ;
     
     %% SOC
     X = X0; W = X0;
     Lambda = zeros(size(X));
     eta = 5e-6; rho = 1e3;
 
-    for iter=2:max_iter
+    for iter=2:max_iter_soc
         temp_F = @(X) F(X) + rho / 2 * norm(X - W + Lambda, "fro")^2;
         admm_start = tic;
 
@@ -81,8 +77,7 @@ for k = 1:trial_number
         elapsed_time = toc(admm_start);
 
         % Value update
-        F_val_soc(iter) = F(W);
-        F_val_soc_avg(iter) = F_val_soc_avg(iter) + F(W);
+        F_val_soc(iter) = F(W) ;
         vio_soc_avg(iter) = vio_soc_avg(iter) + norm(W - X, 'fro');
 %         if abs(F_val_soc(iter) - F_val_soc(iter-1)) <= 1e-8
 %             break
@@ -123,8 +118,7 @@ for k = 1:trial_number
         elapsed_time = toc(admm_start);
 
         % Value update
-        F_val_madmm(iter) = F(X);
-        F_val_madmm_avg(iter) = F_val_madmm_avg(iter) + F(X);
+        F_val_madmm(iter) = F(X) ;
         vio_madmm_avg(iter) = vio_madmm_avg(iter) + norm(Y.'*X - W, 'fro');
 %         if abs(F_val_madmm(iter) - F_val_madmm(iter-1)) <= 1e-8
 %             break
@@ -166,8 +160,7 @@ for k = 1:trial_number
         elapsed_time = toc(admm_start);
 
         % Value update
-        F_val_radmm(iter) = F(X);
-        F_val_radmm_avg(iter) = F_val_radmm_avg(iter) + F(X);
+        F_val_radmm(iter) = F(X) ;
         vio_radmm_avg(iter) = vio_radmm_avg(iter) + norm(Y.'*X - W, 'fro');
 %         if abs(F_val_radmm(iter) - F_val_radmm(iter-1)) <= 1e-8
 %             break
@@ -179,6 +172,23 @@ for k = 1:trial_number
         % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
     end
     iter2 = min(iter, iter2);
+    
+    min_among_all = min([min(F_val_soc), min(F_val_madmm), min(F_val_radmm)]);
+    l = size(F_val_soc);
+    for i=1:l(2)
+        F_val_soc(i) = F_val_soc(i) - min_among_all;
+    end
+    l = size(F_val_madmm);
+    for i=1:l(2)
+        F_val_madmm(i) = F_val_madmm(i) - min_among_all;
+    end
+    l = size(F_val_radmm);
+    for i=1:l(2)
+        F_val_radmm(i) = F_val_radmm(i) - min_among_all;
+    end
+    F_val_soc_avg = F_val_soc_avg + F_val_soc ;
+    F_val_madmm_avg = F_val_madmm_avg + F_val_madmm ;
+    F_val_radmm_avg = F_val_radmm_avg + F_val_radmm ;
     
 end
 
@@ -211,38 +221,35 @@ disp([F_val_soc_avg(iter0 - 1), F_val_madmm_avg(iter1 - 1), F_val_radmm_avg(iter
 %% Plots
 figure0 = figure(1);
 clf
-plot(F_val_soc_avg(1:iter0), '-.'); hold on;
-plot(F_val_madmm_avg(1:iter1), '-.'); hold on;
-plot(F_val_radmm_avg(1:iter2)); hold on;
-xlabel("Iterations");
-ylabel("Function value");
+semilogy(F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+semilogy(F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+semilogy(F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+xlabel('Iteration','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
-legend('Location','best');
+legend('Location','best','FontSize',20);
 filename = "dpcp_soc_madmm_n_" + n + "_p_" + p + "_fval.pdf";
 saveas(figure0, filename);
 % figure0.show()
 
 figure1 = figure(2);
 clf
-semilogx(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.'); hold on;
-semilogx(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.'); hold on;
-semilogx(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2)); hold on;
-xlabel("CPU time");
-ylabel("Function value");
+loglog(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+loglog(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
-legend('Location','best');
+legend('Location','best','FontSize',20);
 filename = "dpcp_soc_madmm_cpu_time_n_" + n + "_p_" + p + "_fval.pdf";
 saveas(figure1, filename);
 % figure1.show()
 
 figure2 = figure(3);
 clf
-semilogx(cpu_time_soc(1:iter0), vio_soc_avg(1:iter0), '-.'); hold on;
-semilogx(cpu_time_madmm(1:iter1), vio_madmm_avg(1:iter1), '-.'); hold on;
-semilogx(cpu_time_radmm(1:iter2), vio_radmm_avg(1:iter2)); hold on;
-xlabel("CPU time");
-ylabel("Constrain violation");
+semilogx(cpu_time_soc(1:iter0), vio_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+semilogx(cpu_time_madmm(1:iter1), vio_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+semilogx(cpu_time_radmm(1:iter2), vio_radmm_avg(1:iter2),'LineWidth',2); hold on;
+xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('Constrain violation','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
-legend('Location','best');
+legend('Location','best','FontSize',20);
 % saveas(figure1, filename);
 % figure1.show()

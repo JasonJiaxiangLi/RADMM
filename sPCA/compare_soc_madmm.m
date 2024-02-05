@@ -32,15 +32,15 @@ for n=n_list
             N = 1000;
             iter = 1;
             avg = 1;
-            F_val_soc_avg = zeros([1,1000]);
-            F_val_madmm_avg = zeros([1,1000]);
-            F_val_radmm_avg = zeros([1,1000]);
-            cpu_time_soc = zeros([avg,1000]); cpu_time_soc(1) = eps;
-            cpu_time_madmm = zeros([avg,1000]); cpu_time_madmm(1) = eps;
-            cpu_time_radmm = zeros([avg, 1000]); cpu_time_radmm(1) = eps;
-            vio_soc_avg = zeros([1,1000]);
-            vio_madmm_avg = zeros([1,1000]);
-            vio_radmm_avg = zeros([1,1000]);
+            F_val_soc_avg = zeros([1,100]);
+            F_val_madmm_avg = zeros([1,500]);
+            F_val_radmm_avg = zeros([1,500]);
+            cpu_time_soc = zeros([avg,100]); cpu_time_soc(1) = eps;
+            cpu_time_madmm = zeros([avg,500]); cpu_time_madmm(1) = eps;
+            cpu_time_radmm = zeros([avg,500]); cpu_time_radmm(1) = eps;
+            vio_soc_avg = zeros([1,100]);
+            vio_madmm_avg = zeros([1,500]);
+            vio_radmm_avg = zeros([1,500]);
             
             sparse_soc = zeros([1, avg]);
             error_soc = zeros([1, avg]);
@@ -55,9 +55,6 @@ for n=n_list
                 % random initialize
                 X0 = randn(n, p);
                 X0 = orth(X0);
-                F_val_soc_avg(1) = F_val_soc_avg(1) + F(X0);
-                F_val_madmm_avg(1) = F_val_madmm_avg(1) + F(X0);
-                F_val_radmm_avg(1) = F_val_radmm_avg(1) + F(X0);
                 
                 %% SOC
                 X = X0; Y = X0;
@@ -100,7 +97,6 @@ for n=n_list
 
                     % Value update
                     F_val_soc(iter) = F(Y);
-                    F_val_soc_avg(iter) = F_val_soc_avg(iter) + F(Y);
                     vio_soc_avg(iter) = vio_soc_avg(iter) + norm(Y - X, 'fro');
 %                     if abs(F_val_soc(iter) - F_val_soc(iter-1)) <= 1e-8
 %                         break
@@ -145,7 +141,6 @@ for n=n_list
 
                     % Value update
                     F_val_madmm(iter) = F(X);
-                    F_val_madmm_avg(iter) = F_val_madmm_avg(iter) + F(X);
                     vio_madmm_avg(iter) = vio_madmm_avg(iter) + norm(Y - X, 'fro');
 %                     if abs(F_val_madmm(iter) - F_val_madmm(iter-1)) <= 1e-8
 %                         break
@@ -189,7 +184,6 @@ for n=n_list
 
                     % Value update
                     F_val_radmm(iter) = F(X);
-                    F_val_radmm_avg(iter) = F_val_radmm_avg(iter) + F(X);
                     vio_radmm_avg(iter) = vio_radmm_avg(iter) + norm(Y - X, 'fro');
 %                     if abs(F_val_radmm(iter) - F_val_radmm(iter-1)) <= 1e-8
 %                         break
@@ -205,6 +199,23 @@ for n=n_list
                 iter2 = min(iter, iter2);
                 sparse_radmm(k) = sum(sum(abs(X) <= 1e-8))/(n*p);
                 error_radmm(k) = norm(Y - X, 'fro');
+                
+                min_among_all = min([min(F_val_soc), min(F_val_madmm), min(F_val_radmm)]);
+                l = size(F_val_soc);
+                for i=1:l(2)
+                    F_val_soc(i) = F_val_soc(i) - min_among_all;
+                end
+                l = size(F_val_madmm);
+                for i=1:l(2)
+                    F_val_madmm(i) = F_val_madmm(i) - min_among_all;
+                end
+                l = size(F_val_radmm);
+                for i=1:l(2)
+                    F_val_radmm(i) = F_val_radmm(i) - min_among_all;
+                end
+                F_val_soc_avg = F_val_soc_avg + F_val_soc ;
+                F_val_madmm_avg = F_val_madmm_avg + F_val_madmm ;
+                F_val_radmm_avg = F_val_radmm_avg + F_val_radmm ;
                 
             end
             F_val_soc_avg = (F_val_soc_avg/avg);
@@ -246,39 +257,37 @@ for n=n_list
             %% Plots
             figure0 = figure(1);
             clf
-            plot(F_val_soc_avg(1:iter0), '-.'); hold on;
-            plot(F_val_madmm_avg(1:iter1), '-.'); hold on;
-            plot(F_val_radmm_avg(1:iter2)); hold on;
-            xlabel("Iterations");
-            ylabel("Function value");
+            semilogy(F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+            semilogy(F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+            semilogy(F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
             legend('SOC', 'MADMM', 'RADMM');
-            legend('Location','best');
+            legend('Location','best','FontSize',20);
             filename = "soc_madmm_n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";
             saveas(figure0, filename);
             % figure0.show()
             
             figure1 = figure(2);
             clf
-            semilogx(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.'); hold on;
-            semilogx(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.'); hold on;
-            semilogx(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2)); hold on;
-            xlabel("CPU time");
-            ylabel("Function value");
+            loglog(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+            loglog(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+            loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
             legend('SOC', 'MADMM', 'RADMM');
-            legend('Location','best');
+            legend('Location','best','FontSize',20);
             filename = "soc_madmm_cpu_time_n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";
             saveas(figure1, filename);
             % figure1.show()
             
             figure2 = figure(3);
             clf
-            semilogx(cpu_time_soc(1:iter0), vio_soc_avg(1:iter0), '-.'); hold on;
-            semilogx(cpu_time_madmm(1:iter1), vio_madmm_avg(1:iter1), '-.'); hold on;
-            semilogx(cpu_time_radmm(1:iter2), vio_radmm_avg(1:iter2)); hold on;
-            xlabel("CPU time");
-            ylabel("Constrain violation");
+            loglog(cpu_time_soc(1:iter0), vio_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+            loglog(cpu_time_madmm(1:iter1), vio_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+            loglog(cpu_time_radmm(1:iter2), vio_radmm_avg(1:iter2),'LineWidth',2); hold on;
+            xlabel("CPU time",'FontSize',18);
+            ylabel("Constrain violation",'FontSize',18);
             legend('SOC', 'MADMM', 'RADMM');
-            legend('Location','best');
+            legend('Location','best','FontSize',20);
             % filename = "soc_madmm_n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";
             % saveas(figure1, filename);
             % figure1.show()
