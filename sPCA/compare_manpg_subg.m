@@ -11,7 +11,7 @@ addpath misc
 addpath SSN_subproblem
 %% Problem Generating
 % n_list = [300, 500]; p_list = [50, 100];
-n_list = 500; p_list = [50, 100];
+n_list = 300; p_list = 100;
 % mu_list = [0.5, 0.7, 1];
 mu_list = 1;
 for n=n_list
@@ -363,7 +363,7 @@ for n=n_list
             semilogy(cpu_time_subg(2:iter3), F_val_subg_avg(2:iter3),'LineWidth',2); hold on;
             semilogy(cpu_time_manpg(2:iter1), F_val_manpg_avg(2:iter1),'LineWidth',2); hold on;
             semilogy(cpu_time_admm(2:iter2), F_val_avg(2:iter2),'LineWidth',2); hold on;
-            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
+            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
             legend('RSG', 'ManPG', 'RADMM');
             legend('Location','best','FontSize',20);
             filename = "grid_search_plots/n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";

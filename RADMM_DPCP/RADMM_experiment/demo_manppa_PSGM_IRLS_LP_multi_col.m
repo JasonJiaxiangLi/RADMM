@@ -2,7 +2,7 @@ close all; clear all;
 %randn('seed',2018);rand('seed',2018)
 rng('default');
 %% setup
-D = 70;
+D = 30;
 c = 5;
 d = D - c;
 trial_number = 10;
@@ -229,7 +229,7 @@ semilogy(time_IRLS+eps, fval_IRLS, plotStyle{3},'linewidth',2); legendInfo{3} = 
 hold on 
 semilogy(time_RADMM+eps, fval_RADMM, plotStyle{4},'linewidth',2); legendInfo{4} = ['RADMM'];
 legend(legendInfo,'Location','Best','FontSize',20);
-xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
+xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
 %title(['Inlier p_1=' , num2str(N), ', Outlier p_2=', num2str(M), ', dimension of variable: ', num2str(D),'x', num2str(c) ])
 filename = "d_" + D + "_p_" + c + "_p1_" + N + "_p2_" + M + "_time_fval.pdf";
 saveas(figure2, filename);

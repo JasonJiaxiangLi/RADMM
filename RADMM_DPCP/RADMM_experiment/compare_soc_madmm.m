@@ -2,13 +2,13 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Implementation of the Moreau-envelope Riemannian ADMM
 % Test on the DPCP problem
-% Problem: sPCA, min \|Y^T X\|_1
+% Problem: DPCP
 % Manifold: Stiefel manifold St(n, p)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clc; close all; clear
 
 %% Problem Generating
-D = 70; n = D;
+D = 30; n = D;
 c = 5; p = c;
 d = D - c;
 trial_number = 5;
@@ -224,7 +224,7 @@ clf
 semilogy(F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
 semilogy(F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
 semilogy(F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
-xlabel('Iteration','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
+xlabel('Iteration','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
 legend('Location','best','FontSize',20);
 filename = "dpcp_soc_madmm_n_" + n + "_p_" + p + "_fval.pdf";
@@ -236,7 +236,7 @@ clf
 loglog(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
 loglog(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
 loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
-xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
+xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
 legend('Location','best','FontSize',20);
 filename = "dpcp_soc_madmm_cpu_time_n_" + n + "_p_" + p + "_fval.pdf";

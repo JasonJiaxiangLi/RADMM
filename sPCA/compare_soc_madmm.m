@@ -260,7 +260,7 @@ for n=n_list
             semilogy(F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
             semilogy(F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
             semilogy(F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
-            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
+            xlabel('Iteration','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
             legend('SOC', 'MADMM', 'RADMM');
             legend('Location','best','FontSize',20);
             filename = "soc_madmm_n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";
@@ -272,7 +272,7 @@ for n=n_list
             loglog(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
             loglog(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
             loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
-            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$\log(f(x)-f^*)$','interpreter','latex','FontSize',18);
+            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
             legend('SOC', 'MADMM', 'RADMM');
             legend('Location','best','FontSize',20);
             filename = "soc_madmm_cpu_time_n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";
