@@ -11,12 +11,13 @@ clc; close all; clear
 D = 30; n = D;
 c = 5; p = c;
 d = D - c;
-trial_number = 5;
+trial_number = 1;
+early_stopping = 1; % if 1: use f(x-f(x_pre)) < 10^-8
 
 N = 500; % inlier number
 M = 1167;  % outlier number
 
-max_iter = 1000; max_iter_soc=500;
+max_iter = 4000; max_iter_soc = 2000;
 F_val_soc_avg = zeros([1,max_iter_soc]);
 F_val_madmm_avg = zeros([1,max_iter]);
 F_val_radmm_avg = zeros([1,max_iter]);
@@ -26,8 +27,6 @@ cpu_time_radmm = zeros([trial_number, max_iter]); cpu_time_radmm(1) = eps;
 vio_soc_avg = zeros([1,max_iter_soc]);
 vio_madmm_avg = zeros([1,max_iter]);
 vio_radmm_avg = zeros([1,max_iter]);
-
-iter0 = max_iter; iter1 = max_iter; iter2 = max_iter;
 
 for k = 1:trial_number
     rng('shuffle');
@@ -40,6 +39,8 @@ for k = 1:trial_number
     fprintf('Inlier number: %d, outlier number: %d, tiral: %d\n', N, M, k);
     Y = normc(Xtilde);
     F = @(X) sum(sum(abs(Y'*X)));
+
+    iter0 = max_iter; iter1 = max_iter; iter2 = max_iter;
     
     % random initialize
     X0 = orth(randn(n, p));
@@ -79,9 +80,9 @@ for k = 1:trial_number
         % Value update
         F_val_soc(iter) = F(W) ;
         vio_soc_avg(iter) = vio_soc_avg(iter) + norm(W - X, 'fro');
-%         if abs(F_val_soc(iter) - F_val_soc(iter-1)) <= 1e-8
-%             break
-%         end
+        if early_stopping && abs(F_val_soc(iter) - F_val_soc(iter-1)) <= 1e-8
+            break
+        end
 
         cpu_time_soc(k,iter) = cpu_time_soc(k,iter) + elapsed_time;
         cpu_time_soc(k,iter+1) = cpu_time_soc(k,iter);
@@ -120,9 +121,9 @@ for k = 1:trial_number
         % Value update
         F_val_madmm(iter) = F(X) ;
         vio_madmm_avg(iter) = vio_madmm_avg(iter) + norm(Y.'*X - W, 'fro');
-%         if abs(F_val_madmm(iter) - F_val_madmm(iter-1)) <= 1e-8
-%             break
-%         end
+        if early_stopping && iter > 2 && abs(F_val_madmm(iter) - F_val_madmm(iter-1)) <= 1e-8
+            break
+        end
 
         cpu_time_madmm(k,iter) = cpu_time_madmm(k,iter) + elapsed_time;
         cpu_time_madmm(k,iter+1) = cpu_time_madmm(k,iter);
@@ -162,9 +163,9 @@ for k = 1:trial_number
         % Value update
         F_val_radmm(iter) = F(X) ;
         vio_radmm_avg(iter) = vio_radmm_avg(iter) + norm(Y.'*X - W, 'fro');
-%         if abs(F_val_radmm(iter) - F_val_radmm(iter-1)) <= 1e-8
-%             break
-%         end
+        if early_stopping && iter > 2 && abs(F_val_radmm(iter) - F_val_radmm(iter-1)) <= 1e-8
+            break
+        end
 
         cpu_time_radmm(k,iter) = cpu_time_radmm(k,iter) + elapsed_time;
         cpu_time_radmm(k,iter+1) = cpu_time_radmm(k,iter);
@@ -173,22 +174,22 @@ for k = 1:trial_number
     end
     iter2 = min(iter, iter2);
     
-    min_among_all = min([min(F_val_soc), min(F_val_madmm), min(F_val_radmm)]);
-    l = size(F_val_soc);
-    for i=1:l(2)
-        F_val_soc(i) = F_val_soc(i) - min_among_all;
-    end
-    l = size(F_val_madmm);
-    for i=1:l(2)
-        F_val_madmm(i) = F_val_madmm(i) - min_among_all;
-    end
-    l = size(F_val_radmm);
-    for i=1:l(2)
-        F_val_radmm(i) = F_val_radmm(i) - min_among_all;
-    end
-    F_val_soc_avg = F_val_soc_avg + F_val_soc ;
-    F_val_madmm_avg = F_val_madmm_avg + F_val_madmm ;
-    F_val_radmm_avg = F_val_radmm_avg + F_val_radmm ;
+    % min_among_all = min([min(F_val_soc), min(F_val_madmm), min(F_val_radmm)]);
+    % l = size(F_val_soc);
+    % for i=1:l(2)
+    %     F_val_soc(i) = F_val_soc(i) - min_among_all;
+    % end
+    % l = size(F_val_madmm);
+    % for i=1:l(2)
+    %     F_val_madmm(i) = F_val_madmm(i) - min_among_all;
+    % end
+    % l = size(F_val_radmm);
+    % for i=1:l(2)
+    %     F_val_radmm(i) = F_val_radmm(i) - min_among_all;
+    % end
+    F_val_soc_avg(1:iter0) = F_val_soc_avg(1:iter0) + F_val_soc(1:iter0) ;
+    F_val_madmm_avg(1:iter1) = F_val_madmm_avg(1:iter1) + F_val_madmm(1:iter1) ;
+    F_val_radmm_avg(1:iter2) = F_val_radmm_avg(1:iter2) + F_val_radmm(1:iter2) ;
     
 end
 
@@ -227,7 +228,7 @@ semilogy(F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
 xlabel('Iteration','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
 legend('Location','best','FontSize',20);
-filename = "dpcp_soc_madmm_n_" + n + "_p_" + p + "_fval.pdf";
+filename = "dpcp_soc_madmm_n_" + n + "_p_" + p + "_fval_" + early_stopping + ".pdf";
 saveas(figure0, filename);
 % figure0.show()
 
@@ -239,7 +240,7 @@ loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2),'LineWidth',2); hold on
 xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
 legend('Location','best','FontSize',20);
-filename = "dpcp_soc_madmm_cpu_time_n_" + n + "_p_" + p + "_fval.pdf";
+filename = "dpcp_soc_madmm_cpu_time_n_" + n + "_p_" + p + "_fval_" + early_stopping + ".pdf";
 saveas(figure1, filename);
 % figure1.show()
 

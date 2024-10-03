@@ -10,19 +10,18 @@ clc; close all; clear
 addpath misc
 addpath SSN_subproblem
 %% Problem Generating
-% n_list = [300, 500]; p_list = [50, 100];
-n_list = 300; p_list = 100;
+n_list = [300, 500]; p_list = [50, 100];
+% n_list = 300; p_list = 50;
 % mu_list = [0.5, 0.7, 1];
-mu_list = 1;
+mu_list = 1e-2;
 for n=n_list
     for p=p_list
         for mu=mu_list
-            disp("test on n="+ n +" p="+ p+" mu="+mu);
+            disp("test on n="+ n +", p="+ p+", mu="+mu);
             K = n;
             A = randn(n, K); A = orth(A);
             S = diag(abs(randn(K,1)));
             H = A*S*A.';
-            % mu = 0.5;
             f = @(X) -0.5*trace(X.'*H*X);
             nabla_f = @(X) -H*X;
             g = @(Y) mu*sum(sum(abs(Y)));
@@ -36,7 +35,12 @@ for n=n_list
             X = orth(X);
             Y = X; Z = X; U = X;
             Lambda = zeros(size(X));
-            eta = 1e-2; gamma = 1e-8; N = 1000; rho = 100;
+            eta = 1e-2; gamma = 1e-8; rho = 100;
+            avg = 1;
+            N_sbg = 10000;
+            N_manpg = 10000;
+            N_radmm = 10000;
+            max_iter_N = max([N_sbg N_manpg N_radmm]);
 
             % Parameters for ManPG subproblem
             L = abs(eigs(full(H),1)); % Lipschitz constant
@@ -50,13 +54,13 @@ for n=n_list
             Dn = sparse(DuplicationM(p)); % vectorization for SSN
             pDn = (Dn'*Dn)\Dn'; % for SSN
             nu = 0.8; % penalty coefficient?
-            alpha = 1; % stepsize fpr ManPG
+            alpha = 1; % stepsize for ManPG
             tol = 1e-8*n*p;
 
             Lag = @(X,Y,Lambda,gamma,rho) f(X) + mu*g(Y) + trace(Lambda.'*(X-Y)) + rho/2*norm(X-Y)^2;
             L_M = @(X,Z,Lambda,gamma,rho) f(X) + mu*g_gamma(Z,gamma) + trace(Lambda.'*(X-Z)) + rho/2*norm(X-Z)^2;
 
-            iter = 3;
+            iter = 1;
             F_val(iter) = F(X); F_val_manpg(iter) = F(X);
             F_val_subg(iter) = F(X);
             L_val(iter) = Lag(X,Y,Lambda,gamma,rho);
@@ -64,24 +68,23 @@ for n=n_list
             dist_XY(iter) = norm(X-Y,'fro'); dist_XZ(iter) = norm(X-Z,'fro'); dist_ZY(iter) = norm(Z-Y,'fro');
             norm_subg_F(iter) = norm(proj(X, sub_F(X)),'fro'); 
 
-            avg = 1;
-            F_val_manpg_avg = zeros([1,1000]);
-            F_val_subg_avg = zeros([1,1000]);
-            F_val_avg = zeros([1,1000]);
-            L_val_avg = zeros([1,1000]);
-            dist_XY_avg = zeros([1,1000]);
-            dist_ZY_avg = zeros([1,1000]);
-            dist_XZ_avg = zeros([1,1000]);
-            cpu_time_manpg = zeros([avg,1000]);
-            cpu_time_admm = zeros([avg,1000]);
-            cpu_time_subg = zeros([avg, 1000]);
+            F_val_manpg_avg = zeros([1, max_iter_N]);
+            F_val_subg_avg = zeros([1, max_iter_N]);
+            F_val_avg = zeros([1, max_iter_N]);
+            L_val_avg = zeros([1, max_iter_N]);
+            dist_XY_avg = zeros([1, max_iter_N]);
+            dist_ZY_avg = zeros([1, max_iter_N]);
+            dist_XZ_avg = zeros([1, max_iter_N]);
+            cpu_time_manpg = zeros([avg, max_iter_N]);
+            cpu_time_admm = zeros([avg, max_iter_N]);
+            cpu_time_subg = zeros([avg, max_iter_N]);
             sparse_X = zeros([1, avg]);
             error_Y = zeros([1, avg]);
             sparse_U = zeros([1, avg]);
             sparse_W = zeros([1, avg]);
 
 
-            iter1 = N; iter2 = N; iter3 = N;
+            iter1 = N_manpg; iter2 = N_radmm; iter3 = N_sbg;
             for k = 1:avg
                 if k == avg
                     disp("Total repitition " + k);
@@ -90,11 +93,11 @@ for n=n_list
                 X = orth(X);
                 Y = X; Z = X; U = X; W = X;
                 Lambda = zeros(size(X));
-                eta = 1e-2; gamma = 1e-8; N = 1000; rho = 100;
+                eta = 1e-2; gamma = 1e-8; rho = 100;
 
                 %% ManPG
                 F_val_manpg_avg(1) = F_val_manpg_avg(1)+F(X);
-                for iter=2:N
+                for iter=2:N_manpg
                     manpg_start = tic;
                     neg_pg = -H*U;
                     if alpha < t_min || num_inexact > 10
@@ -121,40 +124,44 @@ for n=n_list
                     V = PU-U; % The V solved from SSN
 
                     % projection onto the Stiefel manifold
-                    [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);    U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
+                    [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);    
+                    U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
 
                     f_trial = f(U_temp);
                     F_trial = f_trial + g(U_temp);   normV=norm(V,'fro');
 
-                %     if  normD < tol 
-                %         break;
-                %     end
+                    % if  normD < tol 
+                    %     break;
+                    % end
 
-                %     %%% linesearch
-                %     alpha_x = 1;
-                %     while F_trial >= F_val(iter-1)-0.5/t*alpha_x*normV^2
-                %         alpha_x = 0.5*alpha_x;
-                %         linesearch_flag = 1;
-                %         num_linesearch_x = num_linesearch_x + 1;
-                %         if alpha_x < t_min
-                %             num_inexact_x = num_inexact_x + 1;
-                %             break;
-                %         end
-                %         PX = X+alpha_x*V;
-                %         % projection onto the Stiefel manifold
-                %         [U, SIGMA, S] = svd(PX'*PX);   SIGMA =diag(SIGMA);   X_temp = PX*(U*diag(sqrt(1./SIGMA))*S');
-                %         f_trial = f(X_temp,H);
-                %         F_trial = f_trial + lambda*h(X_temp);
-                %     end
-                %     X = X_temp; step_size_x(iter) = alpha_x;
-                %     F_val(iter) = F_trial;
-                %     norm_x(iter) = normV;
+                    % %%% linesearch
+                    % alpha_x = 1; ls_cnt = 1; max_ls = 5;
+                    % while F_trial >= F_val(iter-1)-0.5/t*alpha_x*normV^2 && ls_cnt <= max_ls
+                    %     alpha_x = 0.5*alpha_x;
+                    %     linesearch_flag = 1;
+                    %     % num_linesearch_x = num_linesearch_x + 1;
+                    %     % if alpha_x < t_min
+                    %     %     num_inexact_x = num_inexact_x + 1;
+                    %     %     break;
+                    %     % end
+                    %     PU = U+alpha_x*V;
+                    %     % projection onto the Stiefel manifold
+                    %     [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);   
+                    %     U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
+                    %     f_trial = f(U_temp);
+                    %     F_trial = F(U_temp);
+                    %     ls_cnt = ls_cnt + 1;
+                    % end
+                    % U = U_temp; step_size_x(iter) = alpha_x;
+                    % F_val(iter) = F_trial;
 
                     %%% Without linesearch
                     PU = U+alpha*V;
                     % projection onto the Stiefel manifold
-                    [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);   U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
+                    [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);   
+                    U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
                     U = U_temp; % update
+                    
                     elapsed_time_manpg = toc(manpg_start);
                     F_val_manpg(iter) = F(U);
                     
@@ -166,7 +173,7 @@ for n=n_list
                     norm_subg_ManPG(iter) = norm(proj(U, sub_F(U)),'fro'); 
 
                     cpu_time_manpg(k,iter) = cpu_time_manpg(k,iter) + elapsed_time_manpg;
-                    if iter < 1000
+                    if iter < N_manpg
                         cpu_time_manpg(k,iter+1) = cpu_time_manpg(k,iter);
                     end
                     
@@ -175,7 +182,7 @@ for n=n_list
                 
 
                 %% RADMM
-                for iter=2:N
+                for iter=2:N_radmm
                     admm_start = tic;
                     % X step: a gradient step
                     for i=1:1
@@ -215,7 +222,7 @@ for n=n_list
                     norm_subg_F(iter) = norm(proj(X, sub_F(X)),'fro'); 
 
                     cpu_time_admm(k,iter) = cpu_time_admm(k,iter) + elapsed_time_admm;
-                    if iter < 1000
+                    if iter < N_radmm
                         cpu_time_admm(k,iter+1) = cpu_time_admm(k,iter);
                     end
 
@@ -231,7 +238,7 @@ for n=n_list
                 %% Riemannian Subgrad method
                 F_val_subg_avg(1) = F_val_subg_avg(1) + F(W);
                 eta = 1e-2;
-                for iter=2:N
+                for iter=2:N_sbg
 
                     subg_start = tic;
                     neg_g = -nabla_f(W)-mu*sign(W); % negative subgradient
@@ -245,7 +252,7 @@ for n=n_list
                     end
                     norm_subgrad(iter) = norm(neg_rg,'fro');
                     cpu_time_subg(k,iter) = cpu_time_subg(k,iter) + elapsed_time_subg;
-                    if iter < 1000
+                    if iter < N_sbg
                         cpu_time_subg(k,iter+1) = cpu_time_subg(k,iter);
                     end
                 end
