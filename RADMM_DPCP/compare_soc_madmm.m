@@ -8,16 +8,15 @@
 clc; close all; clear
 
 %% Problem Generating
-D = 30; n = D;
+D = 70; n = D;
 c = 5; p = c;
 d = D - c;
-trial_number = 1;
+trial_number = 5;
 early_stopping = 1; % if 1: use f(x-f(x_pre)) < 10^-8
-
 N = 500; % inlier number
 M = 1167;  % outlier number
 
-max_iter = 4000; max_iter_soc = 2000;
+max_iter = 6000; max_iter_soc = 3000;
 F_val_soc_avg = zeros([1,max_iter_soc]);
 F_val_madmm_avg = zeros([1,max_iter]);
 F_val_radmm_avg = zeros([1,max_iter]);
@@ -28,14 +27,20 @@ vio_soc_avg = zeros([1,max_iter_soc]);
 vio_madmm_avg = zeros([1,max_iter]);
 vio_radmm_avg = zeros([1,max_iter]);
 
+min_val = 0;
+
+f_val_soc_avg = 0;
+f_val_madmm_avg = 0;
+f_val_radmm_avg = 0;
+
 for k = 1:trial_number
     rng('shuffle');
     S = orth(randn(D,d));
 %     X = normc( S*randn(d,N) );
 %     O = normc(randn(D,M));
-    X = S*randn(d,N);
+    X_ground = S*randn(d,N);
     O = randn(D,M);
-    Xtilde = [X O];
+    Xtilde = [X_ground O];
     fprintf('Inlier number: %d, outlier number: %d, tiral: %d\n', N, M, k);
     Y = normc(Xtilde);
     F = @(X) sum(sum(abs(Y'*X)));
@@ -80,7 +85,7 @@ for k = 1:trial_number
         % Value update
         F_val_soc(iter) = F(W) ;
         vio_soc_avg(iter) = vio_soc_avg(iter) + norm(W - X, 'fro');
-        if early_stopping && abs(F_val_soc(iter) - F_val_soc(iter-1)) <= 1e-8
+        if early_stopping && iter > 2 && abs(F_val_soc(iter-1) - F_val_soc(iter)) <= 1e-8
             break
         end
 
@@ -89,6 +94,7 @@ for k = 1:trial_number
 
         % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
     end
+    f_val_soc_avg = f_val_soc_avg + F_val_soc(iter);
     iter0 = min(iter, iter0);
     
     %% MADMM
@@ -121,7 +127,7 @@ for k = 1:trial_number
         % Value update
         F_val_madmm(iter) = F(X) ;
         vio_madmm_avg(iter) = vio_madmm_avg(iter) + norm(Y.'*X - W, 'fro');
-        if early_stopping && iter > 2 && abs(F_val_madmm(iter) - F_val_madmm(iter-1)) <= 1e-8
+        if early_stopping && iter > 2 && abs(F_val_madmm(iter-1) - F_val_madmm(iter)) <= 1e-8
             break
         end
 
@@ -130,6 +136,7 @@ for k = 1:trial_number
 
         % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
     end
+    f_val_madmm_avg = f_val_madmm_avg + F_val_madmm(iter);
     iter1 = min(iter, iter1);
     
     %% RADMM
@@ -163,7 +170,7 @@ for k = 1:trial_number
         % Value update
         F_val_radmm(iter) = F(X) ;
         vio_radmm_avg(iter) = vio_radmm_avg(iter) + norm(Y.'*X - W, 'fro');
-        if early_stopping && iter > 2 && abs(F_val_radmm(iter) - F_val_radmm(iter-1)) <= 1e-8
+        if early_stopping && iter > 2 && abs(F_val_radmm(iter-1) - F_val_radmm(iter)) <= 1e-8
             break
         end
 
@@ -172,9 +179,11 @@ for k = 1:trial_number
 
         % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
     end
+    f_val_radmm_avg = f_val_radmm_avg + F_val_radmm(iter);
     iter2 = min(iter, iter2);
     
-    % min_among_all = min([min(F_val_soc), min(F_val_madmm), min(F_val_radmm)]);
+    min_among_all = min([min(F_val_soc(1:iter0)), min(F_val_madmm(1:iter1)), min(F_val_radmm(1:iter2))]);
+    min_val = min_val + min_among_all;
     % l = size(F_val_soc);
     % for i=1:l(2)
     %     F_val_soc(i) = F_val_soc(i) - min_among_all;
@@ -187,13 +196,18 @@ for k = 1:trial_number
     % for i=1:l(2)
     %     F_val_radmm(i) = F_val_radmm(i) - min_among_all;
     % end
-    F_val_soc_avg(1:iter0) = F_val_soc_avg(1:iter0) + F_val_soc(1:iter0) ;
-    F_val_madmm_avg(1:iter1) = F_val_madmm_avg(1:iter1) + F_val_madmm(1:iter1) ;
-    F_val_radmm_avg(1:iter2) = F_val_radmm_avg(1:iter2) + F_val_radmm(1:iter2) ;
+    F_val_soc_avg(1:iter0) = F_val_soc_avg(1:iter0) + F_val_soc(1:iter0);
+    F_val_madmm_avg(1:iter1) = F_val_madmm_avg(1:iter1) + F_val_madmm(1:iter1);
+    F_val_radmm_avg(1:iter2) = F_val_radmm_avg(1:iter2) + F_val_radmm(1:iter2);
     
+    % f_val_soc_avg = f_val_soc_avg + min_among_all + F_val_soc(iter0);
+    % f_val_madmm_avg = f_val_madmm_avg + min_among_all + F_val_madmm(iter1);
+    % f_val_radmm_avg = f_val_radmm_avg + min_among_all + F_val_radmm(iter2);
 end
 
 avg = trial_number;
+
+min_val = min_val / avg;
 
 F_val_soc_avg = (F_val_soc_avg/avg);
 F_val_madmm_avg = (F_val_madmm_avg/avg);
@@ -217,14 +231,14 @@ disp([cpu_time_soc(iter0 - 1), cpu_time_madmm(iter1 - 1), cpu_time_radmm(iter2 -
 
 disp("function value for output SOC, MADMM and RADMM: ")
 
-disp([F_val_soc_avg(iter0 - 1), F_val_madmm_avg(iter1 - 1), F_val_radmm_avg(iter2 - 1)]);
+disp([f_val_soc_avg/avg, f_val_madmm_avg/avg, f_val_radmm_avg/avg]);
 
 %% Plots
 figure0 = figure(1);
 clf
-semilogy(F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
-semilogy(F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
-semilogy(F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+semilogy(F_val_soc_avg(1:iter0) - min_val, '-.','LineWidth',2); hold on;
+semilogy(F_val_madmm_avg(1:iter1) - min_val, '-.','LineWidth',2); hold on;
+semilogy(F_val_radmm_avg(1:iter2) - min_val,'LineWidth',2); hold on;
 xlabel('Iteration','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
 legend('Location','best','FontSize',20);
@@ -234,9 +248,9 @@ saveas(figure0, filename);
 
 figure1 = figure(2);
 clf
-loglog(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
-loglog(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
-loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+loglog(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0) - min_val, '-.','LineWidth',2); hold on;
+loglog(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1) - min_val, '-.','LineWidth',2); hold on;
+loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2) - min_val,'LineWidth',2); hold on;
 xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
 legend('SOC', 'MADMM', 'RADMM');
 legend('Location','best','FontSize',20);
@@ -253,4 +267,28 @@ xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('Constrain violat
 legend('SOC', 'MADMM', 'RADMM');
 legend('Location','best','FontSize',20);
 % saveas(figure1, filename);
+% figure1.show()
+
+figure3 = figure(4);
+clf
+semilogy(F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+semilogy(F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+semilogy(F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+xlabel('Iteration','interpreter','latex','FontSize',18); ylabel('$f(x)$','interpreter','latex','FontSize',18);
+legend('SOC', 'MADMM', 'RADMM');
+legend('Location','best','FontSize',20);
+filename = "dpcp_soc_madmm_n_" + n + "_p_" + p + "_fval_only_" + early_stopping + ".pdf";
+saveas(figure3, filename);
+% figure0.show()
+
+figure4 = figure(5);
+clf
+loglog(cpu_time_soc(1:iter0), F_val_soc_avg(1:iter0), '-.','LineWidth',2); hold on;
+loglog(cpu_time_madmm(1:iter1), F_val_madmm_avg(1:iter1), '-.','LineWidth',2); hold on;
+loglog(cpu_time_radmm(1:iter2), F_val_radmm_avg(1:iter2),'LineWidth',2); hold on;
+xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)$','interpreter','latex','FontSize',18);
+legend('SOC', 'MADMM', 'RADMM');
+legend('Location','best','FontSize',20);
+filename = "dpcp_soc_madmm_cpu_time_n_" + n + "_p_" + p + "_fval_only_" + early_stopping + ".pdf";
+saveas(figure4, filename);
 % figure1.show()
