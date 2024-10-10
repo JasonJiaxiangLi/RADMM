@@ -10,7 +10,7 @@ clc; close all; clear
 %% Problem Generating
 n_list = [300, 500]; p_list = [50, 100];
 % n_list = 300; p_list = 50;
-mu_list = 1;
+mu_list = 0.01;
 for n=n_list
     for p=p_list
         for mu=mu_list
@@ -51,6 +51,8 @@ for n=n_list
 
             iter0 = N; iter1 = N; iter2 = N;
             disp("Total repitition " + avg);
+
+            avg_min_among_all = 0;
             for k = 1:avg
                 % random initialize
                 X0 = randn(n, p);
@@ -98,9 +100,9 @@ for n=n_list
                     % Value update
                     F_val_soc(iter) = F(Y);
                     vio_soc_avg(iter) = vio_soc_avg(iter) + norm(Y - X, 'fro');
-%                     if abs(F_val_soc(iter) - F_val_soc(iter-1)) <= 1e-8
-%                         break
-%                     end
+                    if abs(F_val_soc(iter) - F_val_soc(iter-1)) <= 1e-8
+                        break
+                    end
 
                     cpu_time_soc(k,iter) = cpu_time_soc(k,iter) + elapsed_time;
                     if iter < 1000
@@ -110,7 +112,7 @@ for n=n_list
                     % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
                 end
                 iter0 = min(iter, iter0);
-                sparse_soc(k) = sum(sum(abs(Y) <= 1e-8))/(n*p);
+                sparse_soc(k) = sum(sum(abs(Y) <= 1e-6))/(n*p);
                 error_soc(k) = norm(Y - X, 'fro');
                 
                 %% MADMM
@@ -142,9 +144,9 @@ for n=n_list
                     % Value update
                     F_val_madmm(iter) = F(X);
                     vio_madmm_avg(iter) = vio_madmm_avg(iter) + norm(Y - X, 'fro');
-%                     if abs(F_val_madmm(iter) - F_val_madmm(iter-1)) <= 1e-8
-%                         break
-%                     end
+                    if abs(F_val_madmm(iter) - F_val_madmm(iter-1)) <= 1e-8
+                        break
+                    end
 
                     cpu_time_madmm(k,iter) = cpu_time_madmm(k,iter) + elapsed_time;
                     if iter < 1000
@@ -154,7 +156,7 @@ for n=n_list
                     % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
                 end
                 iter1 = min(iter, iter1);
-                sparse_madmm(k) = sum(sum(abs(Y) <= 1e-8))/(n*p);
+                sparse_madmm(k) = sum(sum(abs(Y) <= 1e-6))/(n*p);
                 error_madmm(k) = norm(Y - X, 'fro');
                 
 
@@ -185,9 +187,9 @@ for n=n_list
                     % Value update
                     F_val_radmm(iter) = F(X);
                     vio_radmm_avg(iter) = vio_radmm_avg(iter) + norm(Y - X, 'fro');
-%                     if abs(F_val_radmm(iter) - F_val_radmm(iter-1)) <= 1e-8
-%                         break
-%                     end
+                    if abs(F_val_radmm(iter) - F_val_radmm(iter-1)) <= 1e-8
+                        break
+                    end
 
                     cpu_time_radmm(k,iter) = cpu_time_radmm(k,iter) + elapsed_time;
                     if iter < 1000
@@ -197,7 +199,7 @@ for n=n_list
                     % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
                 end
                 iter2 = min(iter, iter2);
-                sparse_radmm(k) = sum(sum(abs(X) <= 1e-8))/(n*p);
+                sparse_radmm(k) = sum(sum(abs(X) <= 1e-6))/(n*p);
                 error_radmm(k) = norm(Y - X, 'fro');
                 
                 min_among_all = min([min(F_val_soc), min(F_val_madmm), min(F_val_radmm)]);
@@ -216,8 +218,11 @@ for n=n_list
                 F_val_soc_avg = F_val_soc_avg + F_val_soc ;
                 F_val_madmm_avg = F_val_madmm_avg + F_val_madmm ;
                 F_val_radmm_avg = F_val_radmm_avg + F_val_radmm ;
-                
+
+                avg_min_among_all = avg_min_among_all + min_among_all;
             end
+            avg_min_among_all = avg_min_among_all / avg;
+
             F_val_soc_avg = (F_val_soc_avg/avg);
             F_val_madmm_avg = (F_val_madmm_avg/avg);
             F_val_radmm_avg = (F_val_radmm_avg/avg);
@@ -252,7 +257,7 @@ for n=n_list
             
             disp("function value for output SOC, MADMM and RADMM: ")
 
-            disp([F_val_soc_avg(iter0 - 1), F_val_madmm_avg(iter1 - 1), F_val_radmm_avg(iter2 - 1)]);
+            disp([F_val_soc_avg(iter0 - 1) + avg_min_among_all, F_val_madmm_avg(iter1 - 1) + avg_min_among_all, F_val_radmm_avg(iter2 - 1) + avg_min_among_all]);
 
             %% Plots
             figure0 = figure(1);

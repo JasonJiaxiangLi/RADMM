@@ -4,43 +4,40 @@ clear;
 close all;
 addpath ../misc
 addpath ../SSN_subproblem
-n_set=[100; 200;  500; 800; 1000; 1500; ]; %dimension
+n_set=[300;  500;]; %dimension
 %n_set = 2.^(6:9);
-r_set = [1;2;5;10;];   % rank
+r_set = [50; 100];   % rank
 
-mu_set = 0.8;
+mu_set = [0.01, 0.1];
 index = 1;
-for id_n = 1:1%size(n_set,1)        % n  dimension
+for id_n = 1 %size(n_set,1)        % n  dimension
     
     n = n_set(id_n);
     fid =1;
     
-    for id_r = 3%size(r_set,1) % r  number of column
+    for id_r = 1 %size(r_set,1) % r  number of column
         for id_mu = 1          % mu  sparse parameter
             r = r_set(id_r);
-            %mu = mu_set(id_mu);
+            mu = mu_set(id_mu);
             
             succ_no_manpg = 0;  succ_no_manpg_BB = 0; succ_no_SOC = 0;  succ_no_PAMAL = 0; succ_no_sub = 0;
             diff_no_SOC = 0;  diff_no_PAMAL = 0;  diff_no_sub = 0;
             fail_no_SOC = 0;  fail_no_PAMAL = 0;  fail_no_sub = 0;
-            for test_random = 1:2  %times average.
+            for test_random = 1:1  %times average.
                 fprintf(fid,'==============================================================================================\n');
                 
                 rng('shuffle');
                 %rng(70);
                 m = 50;
                 B = randn(m,n);
-                type = 0; % random data matrix
-                if (type == 1) %covariance matrix
-                    scale = max(diag(B)); % Sigma=A/scale;
+                type = 1; % random data matrix
+                if (type == 1) % covariance matrix
+                    K = n;
+                    A = randn(n, K); A = orth(A);
+                    S = diag(abs(randn(K,1)));
+                    B = A*S*A.';
                 elseif (type == 0) %data matrix
                     B = B - repmat(mean(B,1),m,1);
-                    %                     scale = [];
-                    %                     for id = 1:n
-                    %                         scale = [scale norm(B(:,id))];
-                    %                     end
-                    %                     scale = max(scale);
-                    %                     B = B/scale;
                     B = normc(B);
                     %  Sigma=A'*A;
                 end
@@ -74,17 +71,36 @@ for id_n = 1:1%size(n_set,1)        % n  dimension
                 option_soc.r = r;    option_soc.n = n;  option_soc.mu=mu;
                 %option_soc.L= L;
                 option_soc.type = type;
+                %%%%%% radmm parameter
+                option_radmm.phi_init = phi_init; option_radmm.maxiter = 20000;  option_radmm.tol =1e-4;
+                option_radmm.r = r;    option_radmm.n = n;  option_radmm.mu=mu;
+                %option_soc.L= L;
+                option_radmm.type = type;
                 %%%%%% PAMAL parameter
                 option_PAMAL.phi_init = phi_init; option_PAMAL.maxiter =20000;  option_PAMAL.tol =1e-4;
                 %option_PAMAL.L = L;   option_PAMAL.V = V;
                 option_PAMAL.r = r;   option_PAMAL.n = n;  option_PAMAL.mu=mu;   option_PAMAL.type = type;
                 %    B = randn(d,d)+eye(d,d); B = -B'*B;
+
+                %%%%% RADMM
+                % option_radmm.F_manpg = F_manpg(test_random);
+                % option_radmm.X_manpg = X_manpg;
+                [X_radmm, F_radmm(test_random),sparsity_radmm(test_random),time_radmm(test_random),...
+                    radmm_error_XZ(test_random),maxit_att_radmm(test_random),succ_flag_radmm]= radmm_spca(B,option_radmm);
+                if succ_flag_radmm == 1
+                    succ_no_radmm = succ_no_radmm + 1;
+                end
+
+                %%%%% ManPG
                 [X_manpg, F_manpg(test_random),sparsity_manpg(test_random),time_manpg(test_random),...
                     maxit_att_manpg(test_random),succ_flag_manpg, lins(test_random),in_av(test_random)]= manpg_orth_sparse(B,option_manpg);
                 if succ_flag_manpg == 1
                     succ_no_manpg = succ_no_manpg + 1;
                 end
+
                 
+                
+                %%%%% AManPG
                 option_manpg.F_manpg = F_manpg(test_random);
                 [X_manpg_BB, F_manpg_BB(test_random),sparsity_manpg_BB(test_random),time_manpg_BB(test_random),...
                     maxit_att_manpg_BB(test_random),succ_flag_manpg_BB,lins_adap(test_random),in_av_adap(test_random)]= manpg_orth_sparse_adap(B,option_manpg);
@@ -103,16 +119,19 @@ for id_n = 1:1%size(n_set,1)        % n  dimension
                 if succ_flag_sub == 1
                     succ_no_sub = succ_no_sub + 1;
                 end
+
+                %%%%% SOC
                 option_soc.F_manpg = F_manpg(test_random);
                 option_soc.X_manpg = X_manpg;
-                option_PAMAL.F_manpg = F_manpg(test_random);
-                option_PAMAL.X_manpg = X_manpg;
                 [X_Soc, F_soc(test_random),sparsity_soc(test_random),time_soc(test_random),...
                     soc_error_XPQ(test_random),maxit_att_soc(test_random),succ_flag_SOC]= soc_spca(B,option_soc);
                 if succ_flag_SOC == 1
                     succ_no_SOC = succ_no_SOC + 1;
                 end
+
+                %%%%% PAMAL
                 option_PAMAL.F_manpg = F_manpg(test_random);
+                option_PAMAL.X_manpg = X_manpg;
                 [X_pamal, F_pamal(test_random),sparsity_pamal(test_random),time_pamal(test_random),...
                     pam_error_XPQ(test_random), maxit_att_pamal(test_random),succ_flag_PAMAL]= PAMAL_spca(B,option_PAMAL);
                 if succ_flag_PAMAL ==1
@@ -197,6 +216,8 @@ for id_n = 1:1%size(n_set,1)        % n  dimension
     fprintf(fid,print_format, iter.manpg_BB(id_n), Fval.manpg_BB(id_n), Sp.manpg_BB(id_n),time.manpg_BB(id_n));
     print_format =  'SOC:        %1.3e  %1.5e    %1.2f      %3.2f    %1.3e\n';
     fprintf(fid,print_format,iter.soc(id_n) , Fval.soc(id_n), Sp.soc(id_n) ,time.soc(id_n),mean(soc_error_XPQ));
+    print_format =  'RADMM:        %1.3e  %1.5e    %1.2f      %3.2f    %1.3e\n';
+    fprintf(fid,print_format,iter.radmm(id_n) , Fval.radmm(id_n), Sp.radmm(id_n) ,time.radmm(id_n),mean(soc_error_XZ));
     print_format =  'PAMAL:      %1.3e  %1.5e    %1.2f      %3.2f    %1.3e \n';
     fprintf(fid,print_format,iter.pamal(id_n) ,  Fval.pamal(id_n) ,Sp.pamal(id_n),time.pamal(id_n),mean(pam_error_XPQ));
     print_format =  'Rsub:       %1.3e  %1.5e    %1.2f      %3.2f  \n';

@@ -5,13 +5,13 @@
 % Problem: sPCA, min -1/2*tr(X^THX)+\mu*\|X\|_1=f(X)+h(X)
 % Manifold: Stiefel manifold St(n, p)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-clc; close all; clear
+% clc; close all; clear
 
 addpath misc
 addpath SSN_subproblem
 %% Problem Generating
-n_list = [300, 500]; p_list = [50, 100];
-% n_list = 300; p_list = 50;
+%n_list = [300, 500]; p_list = [50, 100];
+n_list = 300; p_list = 50;
 % mu_list = [0.5, 0.7, 1];
 mu_list = 0.01;
 for n=n_list
@@ -37,10 +37,9 @@ for n=n_list
             Lambda = zeros(size(X));
             eta = 1e-2; gamma = 1e-8; rho = 100;
             avg = 1;
-            N_warmup = 1;
-            N_sbg = 20000;
-            N_manpg = 20000;
-            N_radmm = 20000;
+            N_sbg = 10000;
+            N_manpg = 10000;
+            N_radmm = 10000;
             max_iter_N = max([N_sbg N_manpg N_radmm]);
 
             % Parameters for ManPG subproblem
@@ -49,7 +48,6 @@ for n=n_list
             inner_iter = 100;
             % below: proximal function used in solving the subproblem
             prox_fun = @(b,l,r) proximal_l1(b,l*mu,r); % I multipled mu
-            % prox_fun = @(b,l,r) proximal_l1(b,l,r);
             t_min = 1e-4; % minimum stepsize
             num_linesearch = 0;
             num_inexact = 0; 
@@ -64,7 +62,7 @@ for n=n_list
             L_M = @(X,Z,Lambda,gamma,rho) f(X) + mu*g_gamma(Z,gamma) + trace(Lambda.'*(X-Z)) + rho/2*norm(X-Z)^2;
 
             iter = 1;
-            F_val(iter) = F(X); F_val_manpg(iter) = F(X);
+            F_val_manpg(iter) = F(X);
             F_val_subg(iter) = F(X);
             L_val(iter) = Lag(X,Y,Lambda,gamma,rho);
             MEL_val(iter) = L_M(X,Z,Lambda,gamma,rho);
@@ -73,13 +71,7 @@ for n=n_list
 
             F_val_manpg_avg = zeros([1, max_iter_N]);
             F_val_subg_avg = zeros([1, max_iter_N]);
-            F_val_avg = zeros([1, max_iter_N]);
-            L_val_avg = zeros([1, max_iter_N]);
-            dist_XY_avg = zeros([1, max_iter_N]);
-            dist_ZY_avg = zeros([1, max_iter_N]);
-            dist_XZ_avg = zeros([1, max_iter_N]);
             cpu_time_manpg = zeros([avg, max_iter_N]);
-            cpu_time_admm = zeros([avg, max_iter_N]);
             cpu_time_subg = zeros([avg, max_iter_N]);
             sparse_X = zeros([1, avg]);
             error_Y = zeros([1, avg]);
@@ -89,18 +81,11 @@ for n=n_list
             avg_min_among_all = 0;
             iter1 = N_manpg; iter2 = N_radmm; iter3 = N_sbg;
             for k = 1:avg
-                %% initialize
                 if k == avg
                     disp("Total repitition " + k);
                 end
                 X = randn(n, p);
                 X = orth(X);
-                % warmup using RSG
-                for iter=2:N_warmup
-                    neg_g = -nabla_f(X)-mu*sign(X); % negative subgradient
-                    neg_rg = proj(X, neg_g); % projected onto the tangent space
-                    X = retr(X, eta*neg_rg);
-                end
                 Y = X; Z = X; U = X; W = X;
                 Lambda = zeros(size(X));
                 eta = 1e-2; gamma = 1e-8; rho = 100;
@@ -109,7 +94,7 @@ for n=n_list
                 F_val_manpg_avg(1) = F_val_manpg_avg(1)+F(X);
                 for iter=2:N_manpg
                     manpg_start = tic;
-                    neg_pg = H*U;
+                    neg_pg = -H*U;
                     if alpha < t_min || num_inexact > 10
                         inner_tol = max(5e-16, min(1e-14,1e-5*tol*t^2)); % subproblem inexact;
                     else
@@ -127,7 +112,7 @@ for n=n_list
                     end
                     %semi_newton_end = toc(semi_newton);
                     %cpu_time_newton(iter) = cpu_time_newton(iter)+semi_newton_end;
-                    if in_flag == 1   % subprolem not exact.
+                    if in_flag == 1   % subproblem not exact.
                         inner_flag = 1 + inner_flag;
                     end
 
@@ -144,33 +129,33 @@ for n=n_list
                     %     break;
                     % end
 
-                    % %%% linesearch
-                    % alpha_x = 1; ls_cnt = 1; max_ls = 5;
-                    % while F_trial >= F_val(iter-1)-0.5/t*alpha_x*normV^2 && ls_cnt <= max_ls
-                    %     alpha_x = 0.5*alpha_x;
-                    %     linesearch_flag = 1;
-                    %     % num_linesearch_x = num_linesearch_x + 1;
-                    %     % if alpha_x < t_min
-                    %     %     num_inexact_x = num_inexact_x + 1;
-                    %     %     break;
-                    %     % end
-                    %     PU = U+alpha_x*V;
-                    %     % projection onto the Stiefel manifold
-                    %     [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);   
-                    %     U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
-                    %     f_trial = f(U_temp);
-                    %     F_trial = F(U_temp);
-                    %     ls_cnt = ls_cnt + 1;
-                    % end
-                    % U = U_temp; step_size_x(iter) = alpha_x;
-                    % F_val(iter) = F_trial;
+                    %%% linesearch
+                    alpha_x = 1; ls_cnt = 1; max_ls = 10;
+                    while F_trial >= F_val(iter-1)-0.5/t*alpha_x*normV^2 && ls_cnt <= max_ls
+                        alpha_x = 0.5*alpha_x;
+                        linesearch_flag = 1;
+                        % num_linesearch_x = num_linesearch_x + 1;
+                        % if alpha_x < t_min
+                        %     num_inexact_x = num_inexact_x + 1;
+                        %     break;
+                        % end
+                        PU = U+alpha_x*V;
+                        % projection onto the Stiefel manifold
+                        [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);   
+                        U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
+                        f_trial = f(U_temp);
+                        F_trial = F(U_temp);
+                        ls_cnt = ls_cnt + 1;
+                    end
+                    U = U_temp; step_size_x(iter) = alpha_x;
+                    F_val(iter) = F_trial;
 
-                    %%% Without linesearch
-                    PU = U+alpha*V;
-                    % projection onto the Stiefel manifold
-                    [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);   
-                    U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
-                    U = U_temp; % update
+                    % %%% Without linesearch
+                    % PU = U+alpha*V;
+                    % % projection onto the Stiefel manifold
+                    % [T, SIGMA, S] = svd(PU'*PU);   SIGMA =diag(SIGMA);   
+                    % U_temp = PU*(T*diag(sqrt(1./SIGMA))*S');
+                    % U = U_temp; % update
                     
                     elapsed_time_manpg = toc(manpg_start);
                     F_val_manpg(iter) = F(U);
@@ -189,61 +174,6 @@ for n=n_list
                     
                 end
                 iter1 = min(iter, iter1);
-                
-
-                %% RADMM
-                for iter=2:N_radmm
-                    admm_start = tic;
-                    % X step: a gradient step
-                    for i=1:1
-                        gx = -H*X + Lambda + rho*(X - Z);
-                        rgx = proj(X, gx);
-                        X = retr(X, -(eta)*rgx);
-                        %fprintf('inner iter: %d, X step subgrad:%f\n', i, norm(rgx));
-                    end
-
-                    % Z step (also update Y)
-                    Y = wthresh(X+Lambda/rho,'s',mu*(1+rho*gamma)/rho);
-                    Z = (Y/gamma + Lambda + rho*X) / (1/gamma + rho);
-
-                    % Lambda step
-                    Lambda = Lambda + rho*(X - Z);
-
-                    % update gamma
-                %     if norm(Z-Y,'fro')>= 0.9*dist_ZY(iter-1) && gamma >= eps
-                %         gamma = gamma/2;
-                %     end
-
-                %     if norm(X-Z,'fro')>= 0.9*dist_XZ(iter-1) && rho <=1e6
-                %         rho = rho*2;
-                %     end
-                    elapsed_time_admm = toc(admm_start);
-
-                    % Value update
-                    F_val(iter) = F(X);
-                    if abs(F_val(iter) - F_val(iter-1)) <= 1e-8
-                        break
-                    end
-                    L_val(iter) = Lag(X,Y,Lambda,gamma,rho);
-                    MEL_val(iter) = L_M(X,Z,Lambda,gamma,rho);
-                    dist_XY(iter) = norm(X-Y,'fro'); 
-                    dist_XZ(iter) = norm(X-Z,'fro'); 
-                    dist_ZY(iter) = norm(Z-Y,'fro');
-                    norm_subg_F(iter) = norm(proj(X, sub_F(X)),'fro'); 
-
-                    cpu_time_admm(k,iter) = cpu_time_admm(k,iter) + elapsed_time_admm;
-                    if iter < N_radmm
-                        cpu_time_admm(k,iter+1) = cpu_time_admm(k,iter);
-                    end
-
-                    % fprintf('iter: %d, Lagrangian value: %f, function value:%f\n', iter, L_val(iter), F_val(iter));
-                end
-                iter2 = min(iter, iter2);
-                L_val_avg(1:iter-1) = L_val_avg(1:iter-1) + L_val(1:iter-1);
-                
-                dist_XY_avg(1:iter-1) = dist_XY_avg(1:iter-1) + dist_XY(1:iter-1);
-                dist_XZ_avg(1:iter-1) = dist_XZ_avg(1:iter-1) + dist_XZ(1:iter-1);
-                dist_ZY_avg(1:iter-1) = dist_ZY_avg(1:iter-1) + dist_ZY(1:iter-1);
 
                 %% Riemannian Subgrad method
                 F_val_subg_avg(1) = F_val_subg_avg(1) + F(W);
@@ -276,61 +206,45 @@ for n=n_list
                 % sum(sum(Z)), error: norm(Z.'*Z, 'fro')
                 
                 %% sum all the averages
-                min_among_all = min([min(F_val_manpg(2:end)), min(F_val(2:end)), min(F_val_subg(2:end))]) - eps;
-                l = size(F_val_manpg);
-                for i=1:l(2)
-                    F_val_manpg(i) = F_val_manpg(i) - min_among_all;
-                end
-                l = size(F_val);
-                for i=1:l(2)
-                    F_val(i) = F_val(i) - min_among_all;
-                end
-                l = size(F_val_subg);
-                for i=1:l(2)
-                    F_val_subg(i) = F_val_subg(i) - min_among_all;
-                end
+                min_among_all = min([min(F_val_manpg(2:end)), min(F_val_subg(2:end))]);
+                % l = size(F_val_manpg);
+                % for i=1:l(2)
+                %     F_val_manpg(i) = F_val_manpg(i) - min_among_all;
+                % end
+                % l = size(F_val_subg);
+                % for i=1:l(2)
+                %     F_val_subg(i) = F_val_subg(i) - min_among_all;
+                % end
                 avg_min_among_all = avg_min_among_all + min_among_all;
 
                 F_val_manpg_avg(1:iter1) = F_val_manpg_avg(1:iter1)+ F_val_manpg(1:iter1);
-                F_val_avg(1:iter2) = F_val_avg(1:iter2) + F_val(1:iter2);
                 F_val_subg_avg(1:iter3) = F_val_subg_avg(1:iter3) + F_val_subg(1:iter3);
             end 
             avg_min_among_all = avg_min_among_all / avg;
-
-            F_val_avg= (F_val_avg/avg);
-            L_val_avg = (L_val_avg/avg);
-            dist_XY_avg = (dist_XY_avg/avg);
-            dist_XZ_avg = (dist_XZ_avg/avg);
-            dist_ZY_avg = (dist_ZY_avg/avg);
             F_val_manpg_avg = (F_val_manpg_avg/avg);
             F_val_subg_avg = (F_val_subg_avg/avg);
             %cpu_time_newton = cpu_time_newton/avg
 
-            cpu_time_admm = sum(cpu_time_admm,1)/avg;
             cpu_time_manpg = sum(cpu_time_manpg,1)/avg;
             cpu_time_subg = sum(cpu_time_subg,1)/avg;
 
-            av_sparse_x = sum(sparse_X)/avg;
             av_sparse_u = sum(sparse_U)/avg;
             av_sparse_w = sum(sparse_W)/avg;
             
             av_error_y = sum(error_Y)/avg;
 
-            disp("sparisty for rgrad, manpg and RADMM: ")
+            disp("sparisty for rgrad and manpg: ")
 
-            disp([av_sparse_w, av_sparse_u, av_sparse_x])
+            disp([av_sparse_w, av_sparse_u])
             
-            disp("error of RADMM: ")
             
-            disp(av_error_y)
+            disp("CPU time for rgrad and manpg: ")
             
-            disp("CPU time for rgrad, manpg and RADMM: ")
+            disp([cpu_time_subg(iter3 - 1), cpu_time_manpg(iter1 - 1)]);
             
-            disp([cpu_time_subg(iter3 - 1), cpu_time_manpg(iter1 - 1), cpu_time_admm(iter2 - 1)]);
-            
-            disp("function value for output rgrad, manpg and RADMM: ")
+            disp("function value for output rgrad and manpg: ")
 
-            disp([F_val_subg_avg(iter3 - 1) + avg_min_among_all, F_val_manpg_avg(iter1 - 1) + avg_min_among_all, F_val_avg(iter2 - 1) + avg_min_among_all]);
+            disp([F_val_subg_avg(iter3 - 1), F_val_manpg_avg(iter1 - 1)]);
 
             %{
             fileID = fopen('myfile.txt','w');
@@ -376,19 +290,18 @@ for n=n_list
             % saveas(figure3, 'grid_search_plots/n_500_p_50_fval.pdf');
 
 
-            figure4 = figure(4);
+            figure;
             clf
 %             semilogy(cpu_time_subg, F_val_subg_avg); hold on;
 %             semilogy(cpu_time_manpg, F_val_manpg_avg); hold on;
 %             semilogy(cpu_time_admm, F_val_avg); hold on;
-            semilogy(cpu_time_subg(2:iter3), F_val_subg_avg(2:iter3),'LineWidth',2); hold on;
-            semilogy(cpu_time_manpg(2:iter1), F_val_manpg_avg(2:iter1),'LineWidth',2); hold on;
-            semilogy(cpu_time_admm(2:iter2), F_val_avg(2:iter2),'LineWidth',2); hold on;
-            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)-f^*$','interpreter','latex','FontSize',18);
-            legend('RSG', 'ManPG', 'RADMM');
+            plot(cpu_time_subg(2:iter3), F_val_subg_avg(2:iter3),'LineWidth',2); hold on;
+            plot(cpu_time_manpg(2:iter1), F_val_manpg_avg(2:iter1),'LineWidth',2); hold on;
+            xlabel('CPU time','interpreter','latex','FontSize',18); ylabel('$f(x)$','interpreter','latex','FontSize',18);
+            legend('RSG', 'ManPG');
             legend('Location','best','FontSize',20);
             filename = "grid_search_plots/n_" + n + "_p_" + p + "_mu_" + mu + "_time_fval.pdf";
-            saveas(figure4, filename);
+            % saveas(figure4, filename);
             % break;
         end
 

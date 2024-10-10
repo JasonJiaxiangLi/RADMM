@@ -49,7 +49,7 @@ while  r_l^2 > inner_tol
             new_d = -(1/reg*RE - 1/reg^2 *U*(UG\(LG\(V*RE))));
             % LG = chol(eye(nnzZ) + 1/reg*(V*U),'lower');
             % new_d =  -(1/reg*RE - 1/reg^2 *U*(LG'\(LG\(V*RE))));
-            % new_d = -(1/reg*RE - 1/reg^2 *U*((eye(nnzZ) + 1/reg*V*U)\(V*RE)));
+            %new_d = -(1/reg*RE - 1/reg^2 *U*((eye(nnzZ) + 1/reg*V*U)\(V*RE)));
         end
         new_d = Dn*new_d;
         %norm_d = norm(new_d)^2;

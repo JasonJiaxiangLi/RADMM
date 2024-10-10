@@ -85,7 +85,7 @@ for k = 1:trial_number
         % Value update
         F_val_soc(iter) = F(W) ;
         vio_soc_avg(iter) = vio_soc_avg(iter) + norm(W - X, 'fro');
-        if early_stopping && iter > 2 && abs(F_val_soc(iter-1) - F_val_soc(iter)) <= 1e-8
+        if early_stopping && iter > 2 && abs(F_val_soc(iter-1) - F_val_soc(iter)) <= 1e-6
             break
         end
 
@@ -127,7 +127,7 @@ for k = 1:trial_number
         % Value update
         F_val_madmm(iter) = F(X) ;
         vio_madmm_avg(iter) = vio_madmm_avg(iter) + norm(Y.'*X - W, 'fro');
-        if early_stopping && iter > 2 && abs(F_val_madmm(iter-1) - F_val_madmm(iter)) <= 1e-8
+        if early_stopping && iter > 2 && abs(F_val_madmm(iter-1) - F_val_madmm(iter)) <= 1e-6
             break
         end
 
@@ -170,7 +170,7 @@ for k = 1:trial_number
         % Value update
         F_val_radmm(iter) = F(X) ;
         vio_radmm_avg(iter) = vio_radmm_avg(iter) + norm(Y.'*X - W, 'fro');
-        if early_stopping && iter > 2 && abs(F_val_radmm(iter-1) - F_val_radmm(iter)) <= 1e-8
+        if early_stopping && iter > 2 && abs(F_val_radmm(iter-1) - F_val_radmm(iter)) <= 1e-6
             break
         end
 
